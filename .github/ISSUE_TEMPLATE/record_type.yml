@@ -1,0 +1,27 @@
+name: New record type
+description: Ask for (or offer to add) support for another DNS record type
+labels: ["record-type", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        See "Add a record type" in CONTRIBUTING.md.
+  - type: input
+    id: type
+    attributes:
+      label: Record type
+      placeholder: "NS, HTTPS, SVCB, PTR, TLSA, SSHFP, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example records
+      description: How you would like to write it in YAML.
+      render: yaml
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to implement this

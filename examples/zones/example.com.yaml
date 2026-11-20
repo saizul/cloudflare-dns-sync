@@ -1,0 +1,75 @@
+# One file per zone. Run `cloudflare-dns-sync plan zones/` to compare it with Cloudflare.
+zone: example.com
+
+# Optional: skip the zone lookup (then the token only needs DNS:Edit on this zone).
+# zone_id: 0123456789abcdef0123456789abcdef
+
+# Records created or adopted by this tool get this tag appended to their comment.
+# Only tagged records are ever updated in place or deleted.
+managed_tag: "[dns-sync]"
+
+# Set to true to make this file the single source of truth: every record of a
+# supported type that is not listed below is deleted, tagged or not.
+delete_unmanaged: false
+
+defaults:
+  ttl: auto        # "auto" (Cloudflare's 1) or 30..86400 seconds
+  proxied: false
+
+records:
+  # Web
+  - name: "@"
+    type: A
+    content: 203.0.113.10
+    proxied: true
+    comment: origin web server
+  - name: "@"
+    type: AAAA
+    content: 2001:db8::10
+    proxied: true
+  - name: www
+    type: CNAME
+    content: "@"            # "@" means the zone apex
+    proxied: true
+
+  # Round robin: one entry, several values
+  - name: api
+    type: A
+    content: [203.0.113.21, 203.0.113.22]
+    ttl: 300
+
+  # Mail
+  - name: "@"
+    type: MX
+    content: [mx1.mail.example.net, mx2.mail.example.net]
+    priority: 10
+  - name: "@"
+    type: TXT
+    content: "v=spf1 include:_spf.mail.example.net -all"
+  - name: _dmarc
+    type: TXT
+    content: "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.com"
+
+  # Services
+  - name: _sip._tcp
+    type: SRV
+    priority: 10
+    weight: 5
+    port: 5060
+    target: sip.example.com
+  - name: sip
+    type: A
+    content: 203.0.113.30
+  - name: _xmpp-client._tcp
+    type: SRV
+    content: "5 0 5222 xmpp.example.net"   # priority weight port target
+
+  # Certificates
+  - name: "@"
+    type: CAA
+    tag: issue
+    value: letsencrypt.org
+  - name: "@"
+    type: CAA
+    tag: iodef
+    value: "mailto:security@example.com"

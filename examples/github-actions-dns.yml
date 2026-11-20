@@ -1,0 +1,70 @@
+# Copy to .github/workflows/dns.yml in the repository that holds your zones/ directory.
+#
+# - Pull requests: run `plan`, post it as a single (updated) pull request comment.
+# - Pushes to main: run `apply --yes`.
+#
+# Create a Cloudflare API token with "Zone:Read" and "DNS:Edit" for the zones you
+# manage and store it as the repository secret CLOUDFLARE_API_TOKEN.
+name: DNS
+
+on:
+  pull_request:
+    paths: ["zones/**"]
+  push:
+    branches: [main]
+    paths: ["zones/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dns
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate zone files
+        run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/saizul/cloudflare-dns-sync:latest validate zones
+      - name: Plan
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e CLOUDFLARE_API_TOKEN -v "$PWD:/work" -w /work \
+            ghcr.io/saizul/cloudflare-dns-sync:latest plan zones --color always --out plan.md
+      - name: Comment on the pull request
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('plan.md', 'utf8');
+            const marker = '<!-- cloudflare-dns-sync-plan -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const mine = comments.find(c => c.body && c.body.startsWith(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  apply:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production   # optional: add required reviewers in the repository settings
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e CLOUDFLARE_API_TOKEN -v "$PWD:/work" -w /work \
+            ghcr.io/saizul/cloudflare-dns-sync:latest apply zones --yes --max-deletes 10 --color always

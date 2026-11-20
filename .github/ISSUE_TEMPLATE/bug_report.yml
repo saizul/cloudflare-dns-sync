@@ -1,0 +1,34 @@
+name: Bug report
+description: A wrong plan, a failed apply or a crash
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste API tokens.** Replace real zone names and IPs with example.com and documentation addresses if you prefer.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: The command you ran and its output (`plan --format json` is most helpful).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: zone
+    attributes:
+      label: Zone file (relevant part)
+      render: yaml
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Output of: cloudflare-dns-sync --version (or the image tag)"
+    validations:
+      required: true
