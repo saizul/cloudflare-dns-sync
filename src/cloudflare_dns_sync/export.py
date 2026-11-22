@@ -36,8 +36,10 @@ def export_zone(
     The most common TTL becomes ``defaults.ttl`` so the output stays short.
     Records of unsupported types are listed as comments at the end.
     """
-    supported = [r for r in records if r.type in SUPPORTED_TYPES and (r.managed or not managed_only)]
-    skipped = [r for r in records if r.type not in SUPPORTED_TYPES]
+    supported = [
+        r for r in records if r.type in SUPPORTED_TYPES and not _apex_ns(r, zone) and (r.managed or not managed_only)
+    ]
+    skipped = [r for r in records if r.type not in SUPPORTED_TYPES or _apex_ns(r, zone)]
     supported.sort(key=lambda r: (r.name != zone, r.name, r.type, r.content))
 
     ttls = Counter(AUTO_TTL if r.proxied else r.ttl for r in supported)
@@ -59,10 +61,15 @@ def export_zone(
     body = yaml.dump(doc, Dumper=_Dumper, sort_keys=False, allow_unicode=True, default_flow_style=False, width=200)
     footer = ""
     if skipped:
-        footer = "# Not exported (unsupported record types, left untouched by plan/apply):\n" + "".join(
+        footer = "# Not exported (unsupported types or apex NS, left untouched by plan/apply):\n" + "".join(
             f"#   {r.type} {r.name} {r.content}\n" for r in sorted(skipped, key=Record.sort_key)
         )
     return header + body + footer
+
+
+def _apex_ns(rec: Record, zone: str) -> bool:
+    """Apex NS records belong to Cloudflare and cannot be set from a zone file."""
+    return rec.type == "NS" and rec.name == zone
 
 
 def _record(rec: Record, zone: str, default_ttl: int) -> dict[str, Any]:
@@ -73,7 +80,7 @@ def _record(rec: Record, zone: str, default_ttl: int) -> dict[str, Any]:
             item[key] = relative(value, zone) if key == "target" and value == zone else value
     else:
         content = rec.values["content"]
-        if rec.type in ("CNAME", "MX") and content.rstrip(".").lower() == zone:
+        if rec.type in ("CNAME", "MX", "NS") and content.rstrip(".").lower() == zone:
             content = "@"
         if rec.type == "TXT":
             content = normalize_txt(content)

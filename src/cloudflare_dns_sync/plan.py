@@ -70,8 +70,12 @@ def build_plan(zonefile: ZoneFile, live: list[Record], zone_id: str = "") -> Zon
     tag = zonefile.managed_tag
     plan = ZonePlan(zone=zonefile.zone, zone_id=zone_id, tag=tag)
 
-    supported = [r for r in live if r.type in SUPPORTED_TYPES]
-    plan.unsupported = sorted((r for r in live if r.type not in SUPPORTED_TYPES), key=Record.sort_key)
+    def handled(rec: Record) -> bool:
+        # Apex NS records belong to Cloudflare: never plan changes for them.
+        return rec.type in SUPPORTED_TYPES and not (rec.type == "NS" and rec.name == zonefile.zone)
+
+    supported = [r for r in live if handled(r)]
+    plan.unsupported = sorted((r for r in live if not handled(r)), key=Record.sort_key)
 
     desired_groups: dict[tuple[str, str], list[Record]] = defaultdict(list)
     live_groups: dict[tuple[str, str], list[Record]] = defaultdict(list)

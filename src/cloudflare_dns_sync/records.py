@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-SUPPORTED_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "SRV", "CAA")
+SUPPORTED_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "SRV", "CAA", "NS")
 PROXIABLE_TYPES = frozenset({"A", "AAAA", "CNAME"})
 AUTO_TTL = 1
 
@@ -20,6 +20,7 @@ VALUE_KEYS: dict[str, tuple[str, ...]] = {
     "MX": ("content", "priority"),
     "SRV": ("priority", "weight", "port", "target"),
     "CAA": ("flags", "tag", "value"),
+    "NS": ("content",),
 }
 
 # The subset of ``values`` that identifies a record inside a (name, type) group.
@@ -32,6 +33,7 @@ IDENTITY_KEYS: dict[str, tuple[str, ...]] = {
     "MX": ("content",),
     "SRV": ("target", "port"),
     "CAA": ("tag", "value"),
+    "NS": ("content",),
 }
 
 CAA_TAGS = frozenset({"issue", "issuewild", "iodef"})
@@ -63,7 +65,7 @@ def normalize_values(rtype: str, values: dict[str, Any]) -> dict[str, Any]:
             out["content"] = str(ipaddress.ip_address(str(values["content"]).strip()))
         except ValueError:
             out["content"] = str(values["content"]).strip()
-    elif rtype in ("CNAME", "MX"):
+    elif rtype in ("CNAME", "MX", "NS"):
         out["content"] = normalize_host(str(values["content"]))
     elif rtype == "TXT":
         out["content"] = normalize_txt(str(values["content"]))
@@ -240,7 +242,7 @@ def validate_values(rtype: str, values: dict[str, Any]) -> None:
         _ip(values["content"], ipaddress.IPv4Address, "IPv4")
     elif rtype == "AAAA":
         _ip(values["content"], ipaddress.IPv6Address, "IPv6")
-    elif rtype in ("CNAME", "MX"):
+    elif rtype in ("CNAME", "MX", "NS"):
         _host(values["content"], rtype)
     elif rtype == "TXT":
         if not str(values["content"]):

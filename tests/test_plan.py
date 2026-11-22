@@ -184,3 +184,15 @@ def test_duplicate_live_records_are_cleaned_up():
     plan = plan_for([A], [live("example.com", "A", "192.0.2.1"), live("example.com", "A", "192.0.2.1")])
     assert actions(plan) == [("delete", "A", "example.com", "192.0.2.1")]
     assert plan.in_sync == 1
+
+
+def test_ns_records_are_planned_and_apex_ns_is_never_touched():
+    apex_ns = live("example.com", "NS", "ns1.cloudflare.example", managed=False)
+    old = live("lab.example.com", "NS", "ns-old.example.net")
+    plan = plan_for(
+        [{"name": "lab", "type": "NS", "content": "ns-new.example.net"}],
+        [apex_ns, old],
+        delete_unmanaged=True,
+    )
+    assert actions(plan) == [("update", "NS", "lab.example.com", "ns-new.example.net")]
+    assert apex_ns in plan.unsupported

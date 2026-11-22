@@ -119,7 +119,7 @@ def test_custom_tag_and_delete_unmanaged():
         ({"name": "@", "type": "TXT"}, "needs content"),
         ({"name": "@", "type": "A", "content": "192.0.2.1", "ttl": 5}, "ttl must be"),
         ({"name": "@", "type": "A", "content": "192.0.2.1", "ttl": "fast"}, "ttl must be"),
-        ({"name": "@", "type": "NS", "content": "ns1.example.net"}, "type must be one of"),
+        ({"name": "@", "type": "PTR", "content": "host.example.net"}, "type must be one of"),
         ({"type": "A", "content": "192.0.2.1"}, "name is required"),
         ({"name": "@", "type": "A", "content": "192.0.2.1", "contnet": "x"}, "unknown keys"),
         ({"name": "@", "type": "SRV", "priority": 1, "weight": 1, "port": 1}, "missing: target"),
@@ -221,3 +221,32 @@ def test_example_zone_files_are_valid():
         zf = load_zone_file(path)
         assert zf.records
         assert yaml.safe_load(path.read_text(encoding="utf-8"))["zone"] == zf.zone
+
+
+def test_ns_delegates_a_subdomain():
+    zf = zone([{"name": "lab", "type": "NS", "content": ["NS1.Example.net.", "ns2.example.net"]}])
+    assert [(r.name, r.type, r.canonical()["content"]) for r in zf.records] == [
+        ("lab.example.com", "NS", "ns1.example.net"),
+        ("lab.example.com", "NS", "ns2.example.net"),
+    ]
+    payload = zf.records[0].to_api(DEFAULT_TAG)
+    assert payload["type"] == "NS" and "proxied" not in payload and "data" not in payload
+
+
+def test_ns_rules():
+    errors = errors_of(
+        {
+            "zone": "example.com",
+            "records": [
+                {"name": "@", "type": "NS", "content": "ns1.example.net"},
+                {"name": "lab", "type": "NS", "content": "not a host"},
+                {"name": "dev", "type": "NS", "content": "ns1.example.net", "proxied": True},
+                {"name": "sub", "type": "NS", "content": "ns1.example.net"},
+                {"name": "sub", "type": "A", "content": "192.0.2.1"},
+            ],
+        }
+    )
+    assert any("zone apex are managed by Cloudflare" in e for e in errors)
+    assert any("not a valid host name" in e for e in errors)
+    assert any("NS records cannot be proxied" in e for e in errors)
+    assert any("sub.example.com: a delegated name (NS) cannot have other records (A)" in e for e in errors)
