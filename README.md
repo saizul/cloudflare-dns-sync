@@ -43,7 +43,7 @@ Plan: 2 to create, 2 to update, 1 to delete.
 
 ## Features
 
-- **One YAML file per zone** with A, AAAA, CNAME, MX, TXT, SRV and CAA records, `proxied`,
+- **One YAML file per zone** with A, AAAA, CNAME, MX, TXT, SRV, CAA and NS records, `proxied`,
   TTL (`auto` or seconds), comments, per-zone defaults and multi-value shorthand
   (`content: [ip1, ip2]`)
 - **`plan`**: a colored create / update / delete diff against the live zone, with the exact
@@ -156,7 +156,7 @@ records:
 | Key | Types | Description |
 | --- | --- | --- |
 | `name` | all | `@` for the apex, a relative name (`www`, `_dmarc`, `*.dev`), or a fully qualified name with a trailing dot |
-| `type` | all | `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `SRV`, `CAA` |
+| `type` | all | `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `SRV`, `CAA`, `NS` |
 | `content` | all | Value, or a list of values (one record each). SRV and CAA also accept the separate keys below |
 | `ttl` | all | `auto` or seconds; ignored while proxied (Cloudflare always uses auto) |
 | `proxied` | A, AAAA, CNAME | Orange cloud |
@@ -166,6 +166,11 @@ records:
 | `flags`, `tag`, `value` | CAA | 0-255, `issue`/`issuewild`/`iodef`, text |
 
 Unknown keys are errors, so typos fail in `validate` instead of silently doing nothing.
+
+`NS` records delegate a subdomain to other name servers (`name: lab`, `content:
+[ns1.example.net, ns2.example.net]`). NS records at the zone apex belong to Cloudflare:
+they are rejected in zone files, never planned or deleted (even with `delete_unmanaged:
+true`) and only listed as a comment by `export`. A delegated name cannot carry other records.
 
 ## Which records are managed
 

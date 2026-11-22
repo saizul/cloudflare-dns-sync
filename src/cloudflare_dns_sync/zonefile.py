@@ -127,7 +127,7 @@ def _record_values(rtype: str, item: dict[str, Any], zone: str, content: Any) ->
         if item.get("priority") is None:
             raise RecordError("MX needs priority")
         return {"content": _target(content, zone), "priority": item["priority"]}
-    if rtype == "CNAME":
+    if rtype in ("CNAME", "NS"):
         return {"content": _target(content, zone)}
     if rtype == "TXT" and not isinstance(content, str):
         raise RecordError("TXT content must be a string (quote it in YAML)")
@@ -219,6 +219,8 @@ def _parse_record(item: dict[str, Any], zone: str, tag: str, default_ttl: int, d
     if "name" not in item:
         raise RecordError("name is required (use '@' for the zone apex)")
     name = qualify(str(item["name"]), zone)
+    if rtype == "NS" and name == zone:
+        raise RecordError("NS records at the zone apex are managed by Cloudflare; use NS only to delegate subdomains")
     ttl = parse_ttl(item["ttl"]) if "ttl" in item else default_ttl
     proxied = item.get("proxied", default_proxied if rtype in PROXIABLE_TYPES else False)
     if not isinstance(proxied, bool):
@@ -266,6 +268,9 @@ def _check_conflicts(records: list[Record]) -> list[str]:
         if "CNAME" in types and len(types) > 1:
             others = ", ".join(sorted(types - {"CNAME"}))
             errors.append(f"{name}: a CNAME cannot coexist with other records ({others})")
+        if "NS" in types and types - {"NS", "CNAME"}:
+            others = ", ".join(sorted(types - {"NS", "CNAME"}))
+            errors.append(f"{name}: a delegated name (NS) cannot have other records ({others})")
     return errors
 
 

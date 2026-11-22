@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `NS` records for delegating subdomains. Apex NS records are rejected in zone files, never
+  touched by `plan`/`apply` (also with `delete_unmanaged: true`) and listed as a comment by
+  `export`; a delegated name cannot carry other records.
+
 ## [0.1.0] - 2026-11-20
 
 ### Added
