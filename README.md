@@ -56,7 +56,10 @@ Plan: 2 to create, 2 to update, 1 to delete.
 - **`export`**: dump an existing zone to a ready-to-commit zone file; the first `apply`
   simply tags the records, nothing else changes
 - **`validate`**: offline checks (IP addresses, host names, TTL ranges, duplicates, CNAME
-  conflicts, Cloudflare's 100 character comment limit) that report every error at once
+  conflicts, Cloudflare's 100 character comment limit) that report every error at once,
+  plus warnings for records Cloudflare accepts but that do not work: more than one SPF or
+  DMARC record per name, DMARC outside `_dmarc.`, and a TTL on a proxied record. `plan`
+  shows the same warnings; `validate --strict` fails on them
 - Cloudflare API v4 with an API token from the environment, pagination, retries on
   `429`/`5xx` honouring `Retry-After`
 - Small: httpx + PyYAML. Container image on `ghcr.io`, non-root
@@ -205,7 +208,7 @@ All commands that talk to Cloudflare read the token from `CLOUDFLARE_API_TOKEN`
 | `plan [PATHS] [--format text\|json\|markdown] [--out FILE] [--show-unmanaged] [--detailed-exitcode]` | Show the changes. `--out plan.md` / `plan.json` also writes a file (format from the extension). `--detailed-exitcode` exits `2` when there are changes |
 | `apply [PATHS] [--yes] [--dry-run] [--max-deletes N] [--show-unmanaged]` | Show the plan and apply it. Without `--yes` it asks for `yes`; in CI (`CI=true` or GitHub Actions) or without a terminal it is a dry run |
 | `export ZONE [-o FILE] [--managed-only] [--managed-tag TAG] [--zone-id ID]` | Write the live zone as a zone file. The most common TTL becomes `defaults.ttl` |
-| `validate [PATHS]` | Check zone files without network access |
+| `validate [PATHS] [--strict] [--quiet]` | Check zone files without network access. Warnings go to stderr; `--strict` exits `1` when there are any |
 
 Common options: `--color auto|always|never` (`NO_COLOR` is respected), `--api-url`
 (or `CLOUDFLARE_API_URL`). Exit codes: `0` success, `1` error, `2` changes

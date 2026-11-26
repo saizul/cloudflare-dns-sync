@@ -126,6 +126,7 @@ def build_plan(zonefile: ZoneFile, live: list[Record], zone_id: str = "") -> Zon
             else:
                 plan.unmanaged.append(rec)
 
+    plan.warnings.extend(zonefile.warnings)
     plan.warnings.extend(_cname_conflicts(plan))
     plan.changes.sort(key=Change.sort_key)
     plan.unmanaged.sort(key=Record.sort_key)

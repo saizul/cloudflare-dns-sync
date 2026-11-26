@@ -271,3 +271,22 @@ def test_example_zone_plans_against_empty_zone(run, cf):
 def test_in_ci():
     assert in_ci({"CI": "true"}) and in_ci({"GITHUB_ACTIONS": "true"}) and in_ci({"CI": "1"})
     assert not in_ci({}) and not in_ci({"CI": "false"})
+
+
+def test_validate_warnings_and_strict(run):
+    path = run.write_zone(ZONE + '  - name: "@"\n    type: TXT\n    content: "v=spf1 include:_spf.example.net -all"\n')
+    code, out, err = run("validate", str(path))
+    assert code == 0
+    assert "example.com OK (5 records, 1 warning(s))" in out
+    assert "warning:" in err and "2 SPF records" in err
+    code, _, err = run("validate", str(path), "--strict")
+    assert code == 1 and "2 SPF records" in err
+    code, out, _ = run("validate", str(run.write_zone(ZONE)), "--strict")
+    assert code == 0 and "warning(s)" not in out
+
+
+def test_plan_shows_zone_file_warnings(run, zone_id):
+    path = run.write_zone(ZONE + '  - name: "@"\n    type: TXT\n    content: "v=spf1 a -all"\n')
+    code, out, _ = run("plan", str(path), "--color", "never")
+    assert code == 0
+    assert "! example.com: 2 SPF records" in out
