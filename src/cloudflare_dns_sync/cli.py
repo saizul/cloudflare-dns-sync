@@ -126,6 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_validate = sub.add_parser("validate", parents=[paths], help="check zone files without calling the API")
     p_validate.add_argument("--quiet", "-q", action="store_true")
+    p_validate.add_argument("--strict", action="store_true", help="exit 1 when there are warnings")
     return parser
 
 
@@ -219,10 +220,15 @@ def cmd_export(app: App, args: argparse.Namespace) -> int:
 
 def cmd_validate(app: App, args: argparse.Namespace) -> int:
     zonefiles = load_zone_files(args.paths or DEFAULT_PATHS)
-    if not args.quiet:
-        for zf in zonefiles:
-            print(f"{zf.source}: {zf.zone} OK ({len(zf.records)} records)", file=app.stdout)
-    return EXIT_OK
+    warned = False
+    for zf in zonefiles:
+        if not args.quiet:
+            note = f", {len(zf.warnings)} warning(s)" if zf.warnings else ""
+            print(f"{zf.source}: {zf.zone} OK ({len(zf.records)} records{note})", file=app.stdout)
+        for warning in zf.warnings:
+            warned = True
+            print(f"warning: {zf.source}: {warning}", file=app.stderr)
+    return EXIT_ERROR if warned and args.strict else EXIT_OK
 
 
 COMMANDS = {"plan": cmd_plan, "apply": cmd_apply, "export": cmd_export, "validate": cmd_validate}

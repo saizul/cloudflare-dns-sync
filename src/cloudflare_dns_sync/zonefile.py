@@ -209,7 +209,49 @@ def parse_zone(data: Any, source: str = "<memory>") -> ZoneFile:
         managed_tag=tag,
         delete_unmanaged=delete_unmanaged,
         source=source,
+        warnings=_lint(raw_records, records, default_proxied),
     )
+
+
+def _txt_value(rec: Record) -> str:
+    return str(rec.values.get("content", "")).strip().strip('"').strip()
+
+
+def _lint(raw_records: list[Any], records: list[Record], default_proxied: bool = False) -> list[str]:
+    """Problems that Cloudflare accepts but that break mail or are silently ignored."""
+    warnings = []
+    spf: dict[str, int] = defaultdict(int)
+    dmarc: dict[str, int] = defaultdict(int)
+    for rec in records:
+        if rec.type != "TXT":
+            continue
+        value = _txt_value(rec).lower()
+        if value.startswith("v=spf1") and (len(value) == 6 or value[6] == " "):
+            spf[rec.name] += 1
+        if value.replace(" ", "").startswith("v=dmarc1"):
+            dmarc[rec.name] += 1
+            if not rec.name.startswith("_dmarc."):
+                warnings.append(f"{rec.name}: DMARC record outside _dmarc.<domain> is never looked up by receivers")
+    for name, count in sorted(spf.items()):
+        if count > 1:
+            warnings.append(
+                f"{name}: {count} SPF records (v=spf1); receivers return a permerror, merge them into one record"
+            )
+    for name, count in sorted(dmarc.items()):
+        if count > 1:
+            warnings.append(f"{name}: {count} DMARC records; receivers ignore DMARC when more than one exists")
+    for index, item in enumerate(raw_records):
+        if not isinstance(item, dict) or "ttl" not in item:
+            continue
+        rtype = str(item.get("type", "")).upper()
+        if item.get("proxied", default_proxied and rtype in PROXIABLE_TYPES) is True:
+            ttl = item["ttl"]
+            if not (isinstance(ttl, str) and ttl.strip().lower() == "auto") and ttl != AUTO_TTL:
+                warnings.append(
+                    f"records[{index}] ({item.get('name', '?')} {item.get('type', '?')}): "
+                    f"ttl {ttl} is ignored for proxied records (Cloudflare uses auto)"
+                )
+    return warnings
 
 
 def _parse_record(item: dict[str, Any], zone: str, tag: str, default_ttl: int, default_proxied: bool) -> list[Record]:

@@ -11,6 +11,10 @@ All notable changes to this project are documented here. The format follows
 - `NS` records for delegating subdomains. Apex NS records are rejected in zone files, never
   touched by `plan`/`apply` (also with `delete_unmanaged: true`) and listed as a comment by
   `export`; a delegated name cannot carry other records.
+- Zone file warnings for records Cloudflare accepts but that do not work as intended: more
+  than one SPF (`v=spf1`) record on a name, more than one DMARC record, a DMARC record
+  outside `_dmarc.<domain>`, and an explicit TTL on a proxied record. `validate` prints them
+  (and `--strict` exits 1), `plan` lists them with the other plan warnings.
 
 ## [0.1.0] - 2026-11-20
 

@@ -250,3 +250,40 @@ def test_ns_rules():
     assert any("not a valid host name" in e for e in errors)
     assert any("NS records cannot be proxied" in e for e in errors)
     assert any("sub.example.com: a delegated name (NS) cannot have other records (A)" in e for e in errors)
+
+
+def test_lint_warnings_for_spf_dmarc_and_proxied_ttl():
+    zf = zone(
+        [
+            {"name": "@", "type": "TXT", "content": ["v=spf1 include:_spf.example.net -all", "v=spf1 mx ~all"]},
+            {"name": "@", "type": "TXT", "content": "v=spf10 is not spf"},
+            {"name": "_dmarc", "type": "TXT", "content": "v=DMARC1; p=none"},
+            {"name": "_dmarc", "type": "TXT", "content": "v=DMARC1; p=reject"},
+            {"name": "@", "type": "TXT", "content": "v=DMARC1; p=quarantine"},
+            {"name": "@", "type": "A", "content": "192.0.2.1", "proxied": True, "ttl": 300},
+            {"name": "www", "type": "A", "content": "192.0.2.2", "ttl": 300},
+        ]
+    )
+    assert zf.warnings == [
+        "example.com: DMARC record outside _dmarc.<domain> is never looked up by receivers",
+        "example.com: 2 SPF records (v=spf1); receivers return a permerror, merge them into one record",
+        "_dmarc.example.com: 2 DMARC records; receivers ignore DMARC when more than one exists",
+        "records[5] (@ A): ttl 300 is ignored for proxied records (Cloudflare uses auto)",
+    ]
+
+
+def test_lint_proxied_default_and_clean_zone():
+    zf = zone(
+        [
+            {"name": "@", "type": "A", "content": "192.0.2.1", "ttl": 600},
+            {"name": "mail", "type": "A", "content": "192.0.2.3", "ttl": 600, "proxied": False},
+            {"name": "@", "type": "MX", "content": "mail", "priority": 10, "ttl": 600},
+            {"name": "api", "type": "A", "content": "192.0.2.4", "ttl": "auto"},
+        ],
+        defaults={"proxied": True},
+    )
+    assert zf.warnings == ["records[0] (@ A): ttl 600 is ignored for proxied records (Cloudflare uses auto)"]
+    clean = zone([{"name": "@", "type": "TXT", "content": "v=spf1 mx -all"}])
+    assert clean.warnings == []
+    for example in sorted(EXAMPLES.glob("*.yaml")):
+        assert load_zone_file(example).warnings == [], example
